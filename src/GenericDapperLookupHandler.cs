@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Caching.Hybrid;
+using System.Text.Json;
 
 namespace Api.Lookups;
 
@@ -8,6 +9,8 @@ public interface ILookupSource
 {
     Task<PagedLookupResult> FetchAsync(LookupRequest request, CancellationToken ct);
 }
+
+record CachedLookupItem(LookupItem Item, string? FilterVal);
 
 public class GenericDapperLookupHandler : ILookupSource
 {
@@ -41,10 +44,10 @@ public class GenericDapperLookupHandler : ILookupSource
                 if (def.OrderBy != null) sql += $" ORDER BY {def.OrderBy}";
 
                 var result = await conn.QueryAsync(sql); 
-                return result.Select(x => new { 
-                    Item = new LookupItem((string)x.Value, (string)x.Label), 
-                    FilterVal = x.FilterVal?.ToString() 
-                }).ToList();
+                return result.Select(x => new CachedLookupItem(
+                    new LookupItem((string)x.Value, (string)x.Label), 
+                    x.FilterVal?.ToString()
+                )).ToList();
             }, cancellationToken: ct);
 
             // 2. Filter In-Memory
@@ -53,7 +56,8 @@ public class GenericDapperLookupHandler : ILookupSource
             if (def.FilterColumn != null && request.Parameters != null && 
                 request.Parameters.TryGetValue(def.FilterColumn, out var pVal))
             {
-                query = query.Where(x => x.FilterVal == pVal.ToString());
+                var filterValue = GetParameterValue(pVal);
+                query = query.Where(x => x.FilterVal == filterValue);
             }
 
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
@@ -88,7 +92,10 @@ public class GenericDapperLookupHandler : ILookupSource
 
             if (def.FilterColumn != null && request.Parameters != null && 
                 request.Parameters.TryGetValue(def.FilterColumn, out var pVal))
-                builder.Where($"{def.FilterColumn} = @FilterVal", new { FilterVal = pVal });
+            {
+                var filterValue = GetParameterValue(pVal);
+                builder.Where($"{def.FilterColumn} = @FilterVal", new { FilterVal = filterValue });
+            }
 
             builder.OrderBy(def.OrderBy ?? def.LabelColumn);
 
@@ -101,5 +108,25 @@ public class GenericDapperLookupHandler : ILookupSource
 
             return new PagedLookupResult(items, totalCount, (offset + request.PageSize) < totalCount);
         }
+    }
+
+    private static string? GetParameterValue(object? value)
+    {
+        if (value is null) return null;
+        
+        if (value is JsonElement jsonElement)
+        {
+            return jsonElement.ValueKind switch
+            {
+                JsonValueKind.String => jsonElement.GetString(),
+                JsonValueKind.Number => jsonElement.ToString(),
+                JsonValueKind.True => "true",
+                JsonValueKind.False => "false",
+                JsonValueKind.Null => null,
+                _ => jsonElement.ToString()
+            };
+        }
+        
+        return value.ToString();
     }
 }
