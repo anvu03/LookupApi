@@ -20,7 +20,8 @@
         "ms-dotnettools.csdevkit",
         "ms-mssql.mssql",
         "ms-azuretools.vscode-docker",
-        "humao.rest-client"
+        "humao.rest-client",
+        "eamodio.gitlens"
       ],
       "settings": {
         "mssql.connections": [
