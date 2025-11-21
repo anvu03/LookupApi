@@ -1,0 +1,58 @@
+{
+  "name": "LookupApi Dev Container",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+  "features": {
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "10.0",
+      "installUsingApt": false
+    },
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.csdevkit",
+        "ms-mssql.mssql",
+        "ms-azuretools.vscode-docker",
+        "humao.rest-client"
+      ],
+      "settings": {
+        "mssql.connections": [
+          {
+            "server": "mssql",
+            "database": "LookupDb",
+            "authenticationType": "SqlLogin",
+            "user": "sa",
+            "password": "YourStrong@Passw0rd",
+            "emptyPasswordInput": false,
+            "savePassword": true,
+            "profileName": "Dev Container SQL Server"
+          }
+        ]
+      }
+    }
+  },
+
+  "forwardPorts": [5000, 1433],
+  "portsAttributes": {
+    "5000": {
+      "label": "LookupApi",
+      "onAutoForward": "notify"
+    },
+    "1433": {
+      "label": "SQL Server",
+      "onAutoForward": "silent"
+    }
+  },
+
+  "postCreateCommand": "dotnet restore src/LookupApi.csproj",
+  "postStartCommand": "bash .devcontainer/wait-for-sql.sh",
+
+  "remoteUser": "vscode"
+}
